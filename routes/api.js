@@ -24,7 +24,7 @@ module.exports = function (app) {
   const Issue = mongoose.model("Issue", issueSchema)
   
   const Project = mongoose.model("Project", projectSchema, "IssueTrackerDB")
-  const fields = ["assigned_to","created_by","created_on","issue_text","issue_title","open","status_text"] //,"updated_on","from","to"
+  const fields = ["_id","assigned_to","created_by","created_on","issue_text","issue_title","open","status_text"] //,"updated_on","from","to"
 
   app.route('/api/issues/:project')
     .get(function (req, res){
@@ -38,17 +38,24 @@ module.exports = function (app) {
 //https://stackoverflow.com/questions/3985214/retrieve-only-the-queried-element-in-an-object-array-in-mongodb-collection
 
       //Project.find({project: project, "issues.created_by": "bob"},//finds the created by field but returns the whole array(issues) for the project.
+
       Project.find({project: project},
         // {created_on: {$gte: from, $lt: to}},
         (err, doc) => {
           if(err) return console.error(err)
-          console.log(doc)
-          var resArr = doc[0].issues
+
+      var resArr = []
+
+          if(doc.length>0)
+          resArr = doc[0].issues
+          else return
 
           fields.forEach((field, i) => {
             if(req.query[field] !== undefined)
-              resArr = resArr.filter(issue => issue[field] === req.query[field])
+              resArr = resArr.filter(issue => issue[field] == req.query[field])
           })
+
+            console.log("resArr : " + resArr)
 
           if(req.query.from !== undefined){//From initiated at epoch 0.  If a date is specified, we set it here
             startDate = new Date(req.query.from);
@@ -75,9 +82,6 @@ module.exports = function (app) {
               return hitDateMatches.length>0;
           });
         }
-
-          console.log(dateFilteredResArr);
-
           res.json(resArr)
         });
     })
@@ -101,7 +105,6 @@ module.exports = function (app) {
       Project.findOne({project: project}, (err, doc) => {
         if(err) console.error(err)
         if(doc === null) {//Project doesn't exist.  Creating it.
-          console.log("Creating new Project")
 
           let issuesArr= []
           // newIssue.created_on = new Date()
@@ -124,7 +127,7 @@ module.exports = function (app) {
             }
           },
           (err,doc) => {
-          if(err) return console.log(err)
+          if(err) return console.error(err)
           res.json(newIssue)
         }
       )}    
@@ -134,24 +137,33 @@ module.exports = function (app) {
     .put(function (req, res){
       let project = req.params.project;
       let id = req.body._id
+      console.log("1 - New PUT Request on : " + project)
+      console.log("2 - " + req.body)
 
       // var updTitle, updText, updCreator, updAssignee, updStatus, updOpen;
       var request = {}
 
       //Missing ID : return error message
-      if(req.body._id !== undefined)
+      if(req.body._id !== undefined){
         id = req.body._id
-      else
+
+        if(Object.keys(req.body).length === 1){
+          console.log({error :"no update field(s) sent",_id: id})
+          return res.json({error :"no update field(s) sent",_id: id}) 
+        }
+      }
+      else{
+        console.log({error: "missing _id"})
         return res.json({error: "missing _id"})
+      }
 
         fields.forEach((field) => {
           if(req.body[field] !== undefined)
             request["issues.$." + field ] = req.body[field]
         })
 
-        if(request){//Changes have been requested, updating updated_on date 
+        // if(Object.keys(request).length !== 0)//Changes have been requested, updating updated_on date 
           request["issues.$.updated_on"] = new Date()  
-        }       
 
       // From : https://stackoverflow.com/questions/10778493/whats-the-difference-between-findandmodify-and-update-in-mongodb
       // Using UpdateOne over FindandModify method because If you fetch an item and then update it, 
@@ -165,26 +177,36 @@ module.exports = function (app) {
       $set : request//request
     }, 
         (err, doc) => {
+
           if(err) return ({error:"could not update",_id:id})
-          console.log(doc)
-          return res.json({result: "successfully updated", _id: id})
+          if(doc.n >0){
+            console.log({result: "successfully updated", _id: id})
+            return res.json({result: "successfully updated", _id: id})
+          }else{
+            console.log({error:"could not update",_id: id})
+            return res.json({error:"could not update",_id: id})
+        }
         })
     })
     
     .delete(function (req, res){
       let project = req.params.project;
-      let id = req.body
+      let id
 
-      if(id === undefined)
+      if(Object.keys(req.body).length === 0)
       return res.json({error: "missing _id"})
 
+      id = req.body
       //Pull request documentation :      // https://www.tutorialspoint.com/mongodb-query-to-remove-subdocument-from-document
       Project.updateOne({project: project},
         {"$pull" : { "issues" : {_id:id} } }, 
         (err, doc) => {
-          if(err) return ({error:"could not delete",_id:id})
-          return res.json({result: "successfully deleted", _id: id})
+          if(err) return console.error(err)
+
+           if(doc.nModified === 0)
+          return res.json({error:"could not delete",_id:id._id})
+
+          return res.json({result: "successfully deleted", _id: id._id})
         })
     });
-    
 };
