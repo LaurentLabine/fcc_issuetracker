@@ -37,10 +37,7 @@ module.exports = function (app) {
 //Multiple conditions search : https://stackoverflow.com/questions/39389823/mongodb-query-with-multiple-conditions
 //https://stackoverflow.com/questions/3985214/retrieve-only-the-queried-element-in-an-object-array-in-mongodb-collection
 
-      //Project.find({project: project, "issues.created_by": "bob"},//finds the created by field but returns the whole array(issues) for the project.
-
       Project.find({project: project},
-        // {created_on: {$gte: from, $lt: to}},
         (err, doc) => {
           if(err) return console.error(err)
 
@@ -54,8 +51,6 @@ module.exports = function (app) {
             if(req.query[field] !== undefined)
               resArr = resArr.filter(issue => issue[field] == req.query[field])
           })
-
-            console.log("resArr : " + resArr)
 
           if(req.query.from !== undefined){//From initiated at epoch 0.  If a date is specified, we set it here
             startDate = new Date(req.query.from);
@@ -137,8 +132,6 @@ module.exports = function (app) {
     .put(function (req, res){
       let project = req.params.project;
       let id = req.body._id
-      console.log("1 - New PUT Request on : " + project)
-      console.log("2 - " + req.body)
 
       // var updTitle, updText, updCreator, updAssignee, updStatus, updOpen;
       var request = {}
@@ -147,22 +140,17 @@ module.exports = function (app) {
       if(req.body._id !== undefined){
         id = req.body._id
 
-        if(Object.keys(req.body).length === 1){
-          console.log({error :"no update field(s) sent",_id: id})
+        if(Object.keys(req.body).length === 1)
           return res.json({error :"no update field(s) sent",_id: id}) 
-        }
       }
-      else{
-        console.log({error: "missing _id"})
+      else
         return res.json({error: "missing _id"})
-      }
 
         fields.forEach((field) => {
           if(req.body[field] !== undefined)
             request["issues.$." + field ] = req.body[field]
         })
 
-        // if(Object.keys(request).length !== 0)//Changes have been requested, updating updated_on date 
           request["issues.$.updated_on"] = new Date()  
 
       // From : https://stackoverflow.com/questions/10778493/whats-the-difference-between-findandmodify-and-update-in-mongodb
@@ -177,15 +165,11 @@ module.exports = function (app) {
       $set : request//request
     }, 
         (err, doc) => {
-
           if(err) return ({error:"could not update",_id:id})
-          if(doc.n >0){
-            console.log({result: "successfully updated", _id: id})
+          if(doc.n >0)
             return res.json({result: "successfully updated", _id: id})
-          }else{
-            console.log({error:"could not update",_id: id})
+          else
             return res.json({error:"could not update",_id: id})
-        }
         })
     })
     
@@ -193,6 +177,7 @@ module.exports = function (app) {
       let project = req.params.project;
       let id
 
+      console.log(req.body.length)
       if(Object.keys(req.body).length === 0)
       return res.json({error: "missing _id"})
 
